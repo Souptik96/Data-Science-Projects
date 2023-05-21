@@ -1,0 +1,160 @@
+To analyze the "Olympics.csv" dataset using AWS Redshift, you need to follow these steps:
+
+    1. Createed an AWS Redshift cluster: If you haven't already created a Redshift cluster, you can do so by going to the AWS Management Console, selecting Redshift, and following the steps to create a cluster. Make sure the cluster is in the same AWS region as your S3 bucket.
+
+    2. Then I set up the necessary IAM roles and policies: "arn:aws:iam::xxxxxxxxx:role/S3toRedshiftRole," to ensure that this role has appropriate permissions to access the S3 bucket and perform Redshift operations.
+
+    3. Then I prepared the dataset in my S3 bucket: I uploaded the "Olympics.csv" file to a S3 bucket "s3://sqlredshift/Olympics/athlete_events.csv".
+
+    4. Then I created a Redshift database: Connect to your Redshift cluster using a SQL client or the AWS Management Console. Execute the necessary SQL statements to create a database for your analysis. For example:
+
+a) CREATE DATABASE olympics;
+
+b) Create a Redshift table: Execute the SQL statement to create a table that matches the structure of your dataset. Make sure the column names and data types align with the columns in your "Olympics.csv" file. For example:
+CREATE TABLE olympics.athlete_events (
+    id INT,
+    name VARCHAR(255),
+    age INT,
+    height INT,
+    weight FLOAT,
+    team VARCHAR(255),
+    noc VARCHAR(3),
+    games VARCHAR(255),
+    year INT,
+    season VARCHAR(255),
+    city VARCHAR(255),
+    sport VARCHAR(255),
+    event VARCHAR(255),
+    medal VARCHAR(255)
+);
+
+c) Copy data from S3 to Redshift: Execute the COPY command to load the data from your S3 bucket into the Redshift table. Adjust the command according to your specific S3 bucket and table names. For example:
+
+COPY olympics.athlete_events
+FROM 's3://sqlredshift/Olympics/athlete_events.csv'
+IAM_ROLE 'arn:aws:iam::xxxxxxxxxx:role/S3toRedshiftRole'
+DELIMITER ','
+IGNOREHEADER 1
+CSV;
+
+Now, we can analyse the data:
+
+d) -- Count the number of rows in the table
+SELECT COUNT(*) FROM olympics.athlete_events;
+
+e) -- Find the number of gold medals won by each team
+SELECT team, COUNT(*) AS gold_medals
+FROM olympics.athlete_events
+WHERE medal = 'Gold'
+GROUP BY team
+ORDER BY gold_medals DESC;
+...
+
+f) Find the average age of athletes:
+
+SELECT AVG(age) AS average_age
+FROM olympics.athlete_events;
+- 
+
+g) Count the number of medals won by each sport:
+
+SELECT sport, COUNT(*) AS medal_count
+FROM olympics.athlete_events
+WHERE medal IS NOT NULL
+GROUP BY sport
+ORDER BY medal_count DESC;
+...
+
+h) Find the tallest and shortest athletes:
+
+SELECT MAX(height) AS tallest, MIN(height) AS shortest
+FROM olympics.athlete_events;
+
+i) Find the top 4 countries (teams) with the most medals won:
+
+SELECT team, COUNT(*) AS medal_count
+FROM olympics.athlete_events
+WHERE medal IS NOT NULL
+GROUP BY team
+ORDER BY medal_count DESC
+LIMIT 4;
+...
+
+j) Find the most common age range among athletes:
+
+SELECT CASE
+    WHEN age >= 15 AND age <= 20 THEN '15-20'
+    WHEN age >= 21 AND age <= 30 THEN '21-30'
+    WHEN age >= 31 AND age <= 40 THEN '31-40'
+    ELSE 'Others'
+END AS age_range, COUNT(*) AS count
+FROM olympics.athlete_events
+GROUP BY age_range
+ORDER BY count DESC
+LIMIT 1;
+
+k) Find the athletes who have won gold medals along with the corresponding event details:
+
+SELECT ae.name, ae.event, ae.year, ae.city
+FROM olympics.athlete_events AS ae
+JOIN olympics.medals AS m ON ae.medal = m.medal
+WHERE m.medal_type = 'Gold';
+
+name          | event           | year | city
+--------------|-----------------|------|------
+John Smith    | 100m Sprint     | 2016 | Rio de Janeiro
+Jane Doe      | Gymnastics Vault| 2020 | Tokyo
+Michael Johnson| 200m Dash       | 1996 | Atlanta
+
+l) Get the list of teams along with the total count of athletes representing each team:
+
+SELECT t.team_name, COUNT(ae.name) AS athlete_count
+FROM olympics.athlete_events AS ae
+JOIN olympics.teams AS t ON ae.team_id = t.team_id
+GROUP BY t.team_name;
+
+m) Find the athletes who have won medals in multiple Olympic games:
+
+SELECT ae.name, COUNT(DISTINCT ae.games) AS games_count
+FROM olympics.athlete_events AS ae
+WHERE ae.medal IS NOT NULL
+GROUP BY ae.name
+HAVING COUNT(DISTINCT ae.games) > 1;
+
+*** Now to join the the "noc_regions" dataset with the "athlete_events" table, on the common column NOC between them, I have used the following query: ***
+SELECT ae.name, ae.team, nr.region
+FROM olympics.athlete_events AS ae
+JOIN olympics.noc_regions AS nr ON ae.noc = nr.noc;
+
+n) Find the number of gold medals won by each region:
+
+SELECT nr.region, COUNT(*) AS gold_medals
+FROM olympics.athlete_events AS ae
+JOIN olympics.noc_regions AS nr ON ae.noc = nr.noc
+WHERE ae.medal = 'Gold'
+GROUP BY nr.region
+ORDER BY gold_medals DESC
+LIMIT 4;
+
+o) Find the top 10 regions with the highest number of participating athletes:
+
+SELECT nr.region, COUNT(*) AS athlete_count
+FROM olympics.athlete_events AS ae
+JOIN olympics.noc_regions AS nr ON ae.noc = nr.noc
+GROUP BY nr.region
+ORDER BY athlete_count DESC
+LIMIT 10;
+
+p) Get the top 5 regions with the highest number of gold medals (using CTEs):
+
+WITH gold_medal_counts AS (
+  SELECT nr.region, COUNT(*) AS gold_medals
+  FROM olympics.athlete_events AS ae
+  JOIN olympics.noc_regions AS nr ON ae.noc = nr.noc
+  WHERE ae.medal = 'Gold'
+  GROUP BY nr.region
+  ORDER BY gold_medals DESC
+  LIMIT 5
+)
+SELECT region, gold_medals
+FROM gold_medal_counts;
