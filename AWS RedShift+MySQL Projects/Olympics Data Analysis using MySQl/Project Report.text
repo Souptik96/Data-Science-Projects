@@ -1,0 +1,10 @@
+This project is for analysing the "Olympics.csv" dataset, using AWS RedShift + MySQL.
+
+The dataset used can be donwloaded using this link from kaggle: https://www.kaggle.com/datasets/heesoo37/120-years-of-olympic-history-athletes-and-results
+
+To start analysing the data, make sure you have the following:
+1) Have an AWS account, 
+2) IAM role in the account,
+3) An S3 bucket to store the data.
+
+To learn more, please see the "To analyze the Olympics.csv dataset" file in the folder.
